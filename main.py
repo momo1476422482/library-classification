@@ -1,46 +1,49 @@
 import torch
-from torchvision import transforms
 from torch.utils.data import DataLoader
-from dataset import MergeGaussianDatasetGen, MergeGaussianDataset
-import numpy as np
+from dataset import MixGaussianGenerator
+from dataset import MixGaussianDataset
 from model import ModelSVM
 import sys
-from typing import Optional
+from torch import nn
+from model import MLP
+from train import BaseTrainer
+import numpy as np
 
 
 def eval_algo(algo: str) -> None:
 
-    data_generator = MergeGaussianDatasetGen([0, 1], [0.1, 0.2])
-    train_set = MergeGaussianDataset(
-        data_generator,
-        train=True,
-        transform=None,
-    )
-    print(train_set[10])
+    data_generator = MixGaussianGenerator((np.array([0, 1]), np.array([5, 5])), (0.5, 0.6))
+    num_epochs=50
 
-    # train model
-    train_loader = DataLoader(train_set, batch_size=len(train_set))
-    x, y = next(iter(train_loader))
+    train_set = MixGaussianDataset(data_generator,train=True)
+    train_loader = DataLoader(train_set, batch_size=20)
+
+    test_set = MixGaussianDataset(data_generator, train=False)
+    test_loader = DataLoader(test_set, batch_size=len(test_set))
 
     if algo.lower() == "svmlin":
 
         model = ModelSVM()
 
+    elif algo.lower() == "linear":
+        model = MLP()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-1)
+
     print(f"run {algo.upper()}")
-    model.train(x, y)
 
-    # test model
-    test_set = MergeGaussianDataset(data_generator, train=False, transform=None)
+    # train phase
+    trainer=BaseTrainer(model,optimizer,nn.CrossEntropyLoss(),num_epochs)
 
-    test_loader = DataLoader(test_set, batch_size=len(test_set))
-    x_test, y_test = next(iter(test_loader))
-    # compute score
-    with torch.no_grad():
-        score_test = model.infer(x_test)
+    for epoch in range(num_epochs):
+        trainer.train(epoch,train_loader)
+        for it,batch in enumerate(test_loader):
+            batch[0] = batch[0].to(device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+            score_test = model(batch[0].float()).cpu().detach().numpy()
+            prediction = np.argmax(score_test, axis=1).reshape(-1,1)
+            accuracy = np.mean((prediction == batch[1].cpu().detach().numpy()))
 
-    # compute the error between predicted label and the real one
-    error = np.abs(y_test - score_test)
-    print("error", error)
+    # print the accuracy of classification model
+    print("accuracy is", accuracy)
 
 
 def main():
@@ -51,9 +54,7 @@ def main():
         print(f"{sys.argv[0]} algo [digit]")
         exit(1)
 
-    assert algo.lower() in [
-        "svmlin",
-    ]
+    assert algo.lower() in ["svmlin", "linear"]
 
     eval_algo(algo)
 

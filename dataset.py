@@ -1,97 +1,81 @@
 import numpy as np
 from typing import Dict, Tuple, List, Callable
 import random
-
+import seaborn as sns
 from torch.utils.data import Dataset
 import pandas as pd
 import torch
+import matplotlib.pyplot as plt
+from torchvision import transforms
+from sklearn.model_selection import train_test_split
 
+class MixGaussianGenerator():
 
-class MergeGaussianDatasetGen(Dataset):
+    # ====================================================
     def __init__(
         self,
-        mu: np.ndarray,
-        sigma: np.ndarray,
+        mus: Tuple[np.ndarray, np.ndarray],
+        sigmas: Tuple[float, float],
+        data_dimension: int = 2,
+        flag_plot: bool = True,
         data_size: int = 100,
-    ):
-        self.nfolds = 10
-        dict_data: Dict[List[np.ndarray], List[int]] = {"data": [], "label": []}
+    ) -> None:
 
-        for i, mui, sigmai in zip(range(len(mu)), mu, sigma):
-            data = np.random.normal(mui, sigmai, data_size)
-            dict_data["data"] += data.tolist()
-            dict_data["label"] += [i] * data_size
+        self.flag_plot=flag_plot
+        self.data: List[float] = []
+        self.label: List[int] = []
+        # generate data
+        np.random.seed(0)
+        for i, mu, sigma in zip(range(2), mus, sigmas):
+            assert (mu.size == data_dimension), f"size of mean :{mu.size()} not = {data_dimension}"
+            data = np.random.multivariate_normal(mu, sigma * np.eye(data_dimension), data_size)
+            self.data.extend(data.tolist())
+            self.label.extend([i] * data_size)
 
-        self.data = pd.DataFrame.from_dict(dict_data)
-
-        self.split_data: Dict[str, List[np.ndarray]] = {
-            "train": [],
-            "validation": [],
-        }
-        self.split_labels: Dict[str, List[int]] = {"train": [], "validation": []}
-
-    # ==========================================================
-    @staticmethod
-    def random_order(total_n: int) -> List[int]:
-
-        indices = list(range(total_n))
-        indices = random.sample(indices, len(indices))
-
-        return indices
+        self.data = np.array(self.data)
+        self.label = np.array(self.label).reshape(data_size * 2, -1)
 
     # ===========================================================
-    def split(self) -> None:
+    def get_data(self) -> Tuple[List[np.ndarray], List[np.ndarray], List[int], List[int]]:
 
-        indices = self.random_order(len(self.data))
+        return train_test_split(self.data, self.label, random_state=0)
 
-        print(f"split dataset into train and validation with ratio = {self.nfolds}")
-
-        split = len(self.data) // self.nfolds
-        train_indices = indices[split:]
-        print(train_indices)
-        validation_indices = indices[:split]
-
-        data_train = self.data.iloc[train_indices]
-        self.split_data["train"] = list(data_train[["data"]].to_numpy())
-        self.split_labels["train"] = list(data_train[["label"]].to_numpy())
-
-        data_validation = self.data.iloc[validation_indices]
-        self.split_data["validation"] = list(data_validation[["data"]].to_numpy())
-        self.split_labels["validation"] = list(data_validation[["label"]].to_numpy())
-
-    # =============================================================
-    def get_data(self, train: bool) -> Tuple[List[np.ndarray], List[int]]:
-        self.split()
-
-        if train is True:
-            sample = (self.split_data["train"], self.split_labels["train"])
-        else:
-            sample = (self.split_data["validation"], self.split_labels["validation"])
-
-        return sample
+    # ===========================================================
+    def plot_data(self)->None:
+        if self.flag_plot is True :
+            plt.plot(self.data[:,0],self.data[:,1],'x')
+            plt.savefig("data_plot.png")
 
 
 # ============================================================================
-class MergeGaussianDataset(Dataset):
+class MixGaussianDataset(Dataset):
 
     # ====================================================
     def __init__(
-        self, data_gen: MergeGaussianDatasetGen, transform: Callable, train: bool
+        self,
+        data_generator :MixGaussianGenerator,
+        train :bool,
     ) -> None:
-        self.transform = transform
-        self.data, self.label = data_gen.get_data(train)
-        assert len(self.data) == len(
-            self.label
-        ), " the number of data sould be the same with the number of label"
 
-        # ====================================================
-
+        self.train = train
+        self.data_train,self.data_test,self.label_train,self.label_test=data_generator.get_data()
+        assert len(self.data_train) == len(self.label_train), f"data size {len(self.data_train)} != label size{len(self.label_train)}"
+        assert len(self.data_test) == len(self.label_test), f"data size {len(self.data_test)}!= label size{len(self.label_test)}"
+    # ===========================================================
     def __len__(self) -> int:
 
-        return len(self.data)
+        if self.train is True:
+            return len(self.data_train)
+        else:
+
+            return len(self.data_test)
 
     # ====================================================
-    def __getitem__(self, k: int) -> Tuple[torch.Tensor, int]:
-        if self.transform is None:
-            return self.data[k], self.label[k]
-        return self.transform(self.data[k]), self.label[k]
+    def __getitem__(self, k: int) -> Tuple[np.ndarray, int]:
+
+        if self.train is True:
+
+            return self.data_train[k], self.label_train[k]
+        else:
+
+            return self.data_test[k], self.label_test[k]
