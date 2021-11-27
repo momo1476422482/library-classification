@@ -5,6 +5,8 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from utility_plot import visualise_data
+from pathlib import Path
 
 
 class MixGaussianGenerator:
@@ -20,11 +22,11 @@ class MixGaussianGenerator:
     ) -> None:
 
         self.flag_plot = flag_plot
-        data_tmp: List[float] = []
-        label_tmp: List[float] = []
+        data_tmp: List[List[float]] = []
+        label_tmp: List[int] = []
         # generate data
         np.random.seed(0)
-        for i, mu, sigma in zip(range(2), mus, sigmas):
+        for i, (mu, sigma) in enumerate(zip(mus, sigmas)):
             assert (
                 mu.size == data_dimension
             ), f"size of mean :{mu.size()} not = {data_dimension}"
@@ -47,19 +49,11 @@ class MixGaussianGenerator:
 
     # ===========================================================
     def plot_data(self) -> None:
-        concat_data = self.data[:, 0].reshape(-1, 1)
-        for i in range(1, 2):
-            concat_data = np.append(
-                concat_data,
-                self.data[:, i].reshape(-1, 1),
-                axis=1,
-            )
-        concat_data_label = np.append(concat_data, self.label, axis=1)
-        print(concat_data_label)
-        df = pd.DataFrame(data=concat_data_label, columns=["data0", "data1", "label"])
-        print(df.to_string())
-        sns.scatterplot(data=df, x="data0", y="data1", hue="label")
-        plt.savefig("data_plot.png")
+        concat_data_label = np.concatenate((self.data[:, :2], self.label), axis=1)
+        df = pd.DataFrame(data=concat_data_label, columns=["x0", "x1", "label"])
+        vd = visualise_data(df)
+        path_save_fig = Path(__file__).parent / "data_generated.png"
+        vd.scatter_plot("x0", "x1", "label", path_save_fig)
 
 
 # ============================================================================
@@ -89,7 +83,7 @@ class MixGaussianDataset(Dataset):
     # ===========================================================
     def __len__(self) -> int:
 
-        if self.train is True:
+        if self.train:
             return len(self.data_train)
         else:
 
@@ -98,7 +92,7 @@ class MixGaussianDataset(Dataset):
     # ====================================================
     def __getitem__(self, k: int) -> Tuple[np.ndarray, int]:
 
-        if self.train is True:
+        if self.train:
 
             return self.data_train[k], self.label_train[k]
         else:
