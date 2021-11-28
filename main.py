@@ -7,7 +7,9 @@ from torch import nn
 from model import MLP
 from train import BaseTrainer
 import numpy as np
-import matplotlib.pyplot as plt
+import pandas as pd
+from pathlib import Path
+from utility_plot import visualise_data
 
 
 def eval_algo(algo: str) -> None:
@@ -59,14 +61,16 @@ def eval_algo(algo: str) -> None:
     # plot the trained model
     w = model.state_dict()["layer.weight"].cpu().detach().numpy().tolist()
     w = w[0]
-    print(w)
     b = model.state_dict()["layer.bias"].cpu().detach().numpy()
-    print(b)
     a = -w[0] / w[1]
     xx = np.linspace(-2, 6)
     yy = a * xx - b / w[1]
-    plt.plot(xx, yy, "k-", label="non weighted div")
-    plt.savefig("model.png")
+    df = pd.DataFrame(
+        data=np.concatenate((xx.reshape(-1, 1), yy.reshape(-1, 1)), axis=1),
+        columns=["x0", "x1"],
+    )
+    vd = visualise_data(df)
+    vd.line_plot("x0", "x1", path_save_fig=Path(__file__).parent / "plotted_model.png")
 
 
 def main():

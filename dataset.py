@@ -5,8 +5,6 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from utility_plot import visualise_data
-from pathlib import Path
 
 
 class MixGaussianGenerator:
@@ -50,10 +48,9 @@ class MixGaussianGenerator:
     # ===========================================================
     def plot_data(self) -> None:
         concat_data_label = np.concatenate((self.data[:, :2], self.label), axis=1)
-        df = pd.DataFrame(data=concat_data_label, columns=["x0", "x1", "label"])
-        vd = visualise_data(df)
-        path_save_fig = Path(__file__).parent / "data_generated.png"
-        vd.scatter_plot("x0", "x1", "label", path_save_fig)
+        df = pd.DataFrame(data=concat_data_label, columns=["data0", "data1", "label"])
+        sns.scatterplot(data=df, x="data0", y="data1", hue="label")
+        plt.savefig("data_plot.png")
 
 
 # ============================================================================

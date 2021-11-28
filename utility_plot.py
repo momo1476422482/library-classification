@@ -18,3 +18,12 @@ class visualise_data:
     ) -> None:
         sns.scatterplot(data=self.df, x=col_name1, y=col_name2, hue=hue_name)
         plt.savefig(path_save_fig)
+
+    def line_plot(
+        self,
+        col_name1: str,
+        col_name2: str,
+        path_save_fig: Path,
+    ) -> None:
+        sns.lineplot(data=self.df, x=col_name1, y=col_name2)
+        plt.savefig(path_save_fig)
